@@ -478,6 +478,7 @@ export interface Earthquake {
 export interface Monitor {
   id: string;
   keywords: string[];
+  keywordGroups?: string[][];
   color: string;
   name?: string;
   lat?: number;

@@ -4,6 +4,15 @@ import { MONITOR_COLORS } from '@/config';
 import { generateId, formatTime } from '@/utils';
 import { escapeHtml, sanitizeUrl } from '@/utils/sanitize';
 
+const CRYPTO_TERMS = [
+  'crypto', 'cryptocurrency', 'bitcoin', 'btc', 'ethereum', 'eth', 'stablecoin', 'usdt', 'usdc', 'wallet',
+];
+
+const PHYSICAL_CRIME_TERMS = [
+  'kidnapping', 'kidnap', 'abduction', 'extortion', 'ransom', 'home invasion', 'robbery', 'carjacking',
+  'assault', 'murder', 'attack', 'hostage', 'pet', 'dog', 'cat',
+];
+
 export class MonitorPanel extends Panel {
   private monitors: Monitor[] = [];
   private onMonitorsChange?: (monitors: Monitor[]) => void;
@@ -21,6 +30,7 @@ export class MonitorPanel extends Panel {
     inputContainer.innerHTML = `
       <input type="text" class="monitor-input" id="monitorKeywords" placeholder="Keywords (comma separated)">
       <button class="monitor-add-btn" id="addMonitorBtn">+ Add Monitor</button>
+      <button class="monitor-add-btn" id="cryptoCrimePresetBtn">Use Crypto Crime Preset</button>
     `;
 
     this.content.appendChild(inputContainer);
@@ -36,6 +46,9 @@ export class MonitorPanel extends Panel {
     inputContainer.querySelector('#addMonitorBtn')?.addEventListener('click', () => {
       this.addMonitor();
     });
+    inputContainer.querySelector('#cryptoCrimePresetBtn')?.addEventListener('click', () => {
+      this.loadCryptoCrimePreset();
+    });
 
     const input = inputContainer.querySelector('#monitorKeywords') as HTMLInputElement;
     input?.addEventListener('keypress', (e) => {
@@ -43,6 +56,21 @@ export class MonitorPanel extends Panel {
     });
 
     this.renderMonitorsList();
+  }
+
+  private loadCryptoCrimePreset(): void {
+    this.monitors = [
+      {
+        id: generateId(),
+        name: 'Crypto Physical Crime',
+        keywords: [...CRYPTO_TERMS, ...PHYSICAL_CRIME_TERMS],
+        keywordGroups: [CRYPTO_TERMS, PHYSICAL_CRIME_TERMS],
+        color: '#ff4444',
+      },
+    ];
+
+    this.renderMonitorsList();
+    this.onMonitorsChange?.(this.monitors);
   }
 
   private addMonitor(): void {
@@ -78,7 +106,7 @@ export class MonitorPanel extends Panel {
         (m) => `
       <span class="monitor-tag">
         <span class="monitor-tag-color" style="background: ${escapeHtml(m.color)}"></span>
-        ${m.keywords.map(k => escapeHtml(k)).join(', ')}
+        ${m.name ? `<strong>${escapeHtml(m.name)}</strong>: ` : ''}${m.keywords.map(k => escapeHtml(k)).join(', ')}
         <span class="monitor-tag-remove" data-id="${escapeHtml(m.id)}">×</span>
       </span>
     `
@@ -109,12 +137,17 @@ export class MonitorPanel extends Panel {
       this.monitors.forEach((monitor) => {
         // Search both title and description for better coverage
         const searchText = `${item.title} ${(item as unknown as {description?: string}).description || ''}`.toLowerCase();
-        const matched = monitor.keywords.some((kw) => {
+        const matchKeyword = (kw: string) => {
           // Use word boundary matching to avoid false positives like "ai" in "train"
           const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           const regex = new RegExp(`\\b${escaped}\\b`, 'i');
           return regex.test(searchText);
-        });
+        };
+
+        const matched = monitor.keywordGroups?.length
+          ? monitor.keywordGroups.every((group) => group.some((kw) => matchKeyword(kw)))
+          : monitor.keywords.some((kw) => matchKeyword(kw));
+
         if (matched) {
           matchedItems.push({ ...item, monitorColor: monitor.color });
         }
